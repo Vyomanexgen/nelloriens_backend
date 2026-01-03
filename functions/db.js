@@ -1,4 +1,5 @@
 const admin = require("firebase-admin");
+const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 
 if (!admin.apps.length) {
   admin.initializeApp({
@@ -6,6 +7,10 @@ if (!admin.apps.length) {
   });
 }
 
-const db = admin.firestore();
+const db = getFirestore();
 
-module.exports = { admin, db };
+module.exports = {
+  admin,
+  db,
+  FieldValue, // ✅ EXPORT THIS
+};

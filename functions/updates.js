@@ -1,6 +1,8 @@
 const { onRequest } = require("firebase-functions/v2/https");
-const { db, admin } = require("./db");
+const { db } = require("./db");
+const { Timestamp } = require("firebase-admin/firestore");
 
+// Collection
 const updatesCollection = db.collection("updates");
 
 // -----------------------------------------------------
@@ -10,50 +12,34 @@ exports.createUpdate = onRequest(async (req, res) => {
   try {
     const {
       title,
-      category,
-      status,
+      description,
+      type,
       priority,
-      startTime,
-      endTime,
       visibility,
-      link,
-      summary,
-      details,
-      tags,
-      pinToTop,
-      showRightRailAd,
+      relatedUrl,
       createdBy,
     } = req.body;
 
-    if (!title) {
-      return res.status(400).json({ error: "Title is required" });
+    if (!title || !description) {
+      return res
+        .status(400)
+        .json({ error: "Title and description are required" });
     }
 
-    const updateData = {
+    const data = {
       title,
-      category: category || "",
-      status: status || "draft",
-      priority: priority || "medium",
-      startTime: startTime
-        ? admin.firestore.Timestamp.fromDate(new Date(startTime))
-        : null,
-      endTime: endTime
-        ? admin.firestore.Timestamp.fromDate(new Date(endTime))
-        : null,
-      visibility: visibility || "site-wide",
-      link: link || null,
-      summary: summary || "",
-      details: details || "",
-      tags: Array.isArray(tags) ? tags : [],
-      pinToTop: !!pinToTop,
-      showRightRailAd: !!showRightRailAd,
+      description,
+      type: type || "general", // general | system | event
+      priority: priority || "normal", // low | normal | high
+      visibility: visibility || "public", // public | users | admins
+      relatedUrl: relatedUrl || null,
       createdBy: createdBy || null,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
     };
 
-    const ref = await updatesCollection.add(updateData);
-    res.json({ success: true, id: ref.id });
+    const docRef = await updatesCollection.add(data);
+    res.json({ success: true, id: docRef.id });
   } catch (err) {
     console.error("Error creating update:", err);
     res.status(500).json({ error: "Internal server error" });
@@ -70,19 +56,7 @@ exports.updateUpdate = onRequest(async (req, res) => {
       return res.status(400).json({ error: "Update ID required" });
     }
 
-    if (updates.startTime) {
-      updates.startTime = admin.firestore.Timestamp.fromDate(
-        new Date(updates.startTime)
-      );
-    }
-
-    if (updates.endTime) {
-      updates.endTime = admin.firestore.Timestamp.fromDate(
-        new Date(updates.endTime)
-      );
-    }
-
-    updates.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+    updates.updatedAt = Timestamp.now();
     await updatesCollection.doc(id).update(updates);
 
     res.json({ success: true });
@@ -103,7 +77,7 @@ exports.deleteUpdate = onRequest(async (req, res) => {
     }
 
     await updatesCollection.doc(id).delete();
-    res.json({ success: true });
+    res.json({ success: true, message: "Update deleted" });
   } catch (err) {
     console.error("Error deleting update:", err);
     res.status(500).json({ error: "Internal server error" });
@@ -115,11 +89,13 @@ exports.deleteUpdate = onRequest(async (req, res) => {
 // -----------------------------------------------------
 exports.getUpdates = onRequest(async (req, res) => {
   try {
-    const { category, status, limit = 100 } = req.body || {};
+    const { type, priority, visibility, limit = 50 } = req.body || {};
+
     let query = updatesCollection.orderBy("createdAt", "desc");
 
-    if (category) query = query.where("category", "==", category);
-    if (status) query = query.where("status", "==", status);
+    if (type) query = query.where("type", "==", type);
+    if (priority) query = query.where("priority", "==", priority);
+    if (visibility) query = query.where("visibility", "==", visibility);
 
     const snap = await query.limit(limit).get();
     const updates = snap.docs.map((doc) => ({
@@ -135,7 +111,7 @@ exports.getUpdates = onRequest(async (req, res) => {
 });
 
 // -----------------------------------------------------
-// GET SINGLE UPDATE DETAIL
+// GET SINGLE UPDATE
 // -----------------------------------------------------
 exports.getUpdateDetail = onRequest(async (req, res) => {
   try {

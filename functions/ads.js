@@ -1,41 +1,27 @@
 const { onRequest } = require("firebase-functions/v2/https");
-const { db, admin } = require("./db");
+const cors = require("cors")({ origin: true });
+const { db, FieldValue } = require("./db");
 
-const adsCollection = db.collection("ads");
+exports.adsCreateAd = onRequest((req, res) => {
+  cors(req, res, async () => {
+    try {
+      const { title } = req.body || {};
 
-exports.createAd = onRequest(async (req, res) => {
-  try {
-    const {
-      name,
-      advertiser,
-      destinationUrl,
-      adType,
-      ctaLabel,
-      shortDescription,
-      createdBy,
-    } = req.body;
+      if (!title) {
+        return res.status(400).json({
+          error: "title is required",
+        });
+      }
 
-    if (!name) {
-      return res.status(400).json({ error: "Name is required" });
+      await db.collection("ads").add({
+        title,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+
+      res.json({ success: true });
+    } catch (err) {
+      console.error("createAd error:", err);
+      res.status(500).json({ error: err.message });
     }
-
-    const adData = {
-      name,
-      advertiser: advertiser || "",
-      destinationUrl: destinationUrl || "",
-      adType: adType || "image",
-      ctaLabel: ctaLabel || "",
-      shortDescription: shortDescription || "",
-      status: "draft",
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-      createdBy: createdBy || null,
-    };
-
-    const docRef = await adsCollection.add(adData);
-    res.json({ success: true, id: docRef.id });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Internal server error" });
-  }
+  });
 });

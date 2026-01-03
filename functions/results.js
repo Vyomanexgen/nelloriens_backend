@@ -1,6 +1,8 @@
 const { onRequest } = require("firebase-functions/v2/https");
-const { db, admin } = require("./db");
+const { db } = require("./db");
+const { Timestamp } = require("firebase-admin/firestore");
 
+// Collection
 const resultsCollection = db.collection("results");
 
 // -----------------------------------------------------
@@ -10,43 +12,36 @@ exports.createResult = onRequest(async (req, res) => {
   try {
     const {
       title,
-      examName,
-      department,
+      description,
       category,
-      resultDate,
-      pdfUrl,
-      cutoffDetails,
-      scorecardLink,
-      tags,
-      summary,
+      score,
+      status,
+      publishedAt,
       createdBy,
     } = req.body;
 
-    if (!title) {
-      return res.status(400).json({ error: "Title is required" });
+    if (!title || !description) {
+      return res
+        .status(400)
+        .json({ error: "Title and description are required" });
     }
 
-    const resultData = {
+    const data = {
       title,
-      examName: examName || "",
-      department: department || "",
+      description,
       category: category || "",
-      resultDate: resultDate
-        ? admin.firestore.Timestamp.fromDate(new Date(resultDate))
-        : null,
-      pdfUrl: pdfUrl || "",
-      cutoffDetails: cutoffDetails || "",
-      scorecardLink: scorecardLink || "",
-      tags: Array.isArray(tags) ? tags : [],
-      summary: summary || "",
-      status: "published",
+      score: score || null,
+      status: status || "published", // published | draft
+      publishedAt: publishedAt
+        ? Timestamp.fromDate(new Date(publishedAt))
+        : Timestamp.now(),
       createdBy: createdBy || null,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
     };
 
-    const ref = await resultsCollection.add(resultData);
-    res.json({ success: true, id: ref.id });
+    const docRef = await resultsCollection.add(data);
+    res.json({ success: true, id: docRef.id });
   } catch (err) {
     console.error("Error creating result:", err);
     res.status(500).json({ error: "Internal server error" });
@@ -63,13 +58,11 @@ exports.updateResult = onRequest(async (req, res) => {
       return res.status(400).json({ error: "Result ID required" });
     }
 
-    if (updates.resultDate) {
-      updates.resultDate = admin.firestore.Timestamp.fromDate(
-        new Date(updates.resultDate)
-      );
+    if (updates.publishedAt) {
+      updates.publishedAt = Timestamp.fromDate(new Date(updates.publishedAt));
     }
 
-    updates.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+    updates.updatedAt = Timestamp.now();
     await resultsCollection.doc(id).update(updates);
 
     res.json({ success: true });
@@ -102,12 +95,12 @@ exports.deleteResult = onRequest(async (req, res) => {
 // -----------------------------------------------------
 exports.getResults = onRequest(async (req, res) => {
   try {
-    const { category, department, examName, limit = 50 } = req.body || {};
-    let query = resultsCollection.orderBy("resultDate", "desc");
+    const { category, status, limit = 50 } = req.body || {};
+
+    let query = resultsCollection.orderBy("publishedAt", "desc");
 
     if (category) query = query.where("category", "==", category);
-    if (department) query = query.where("department", "==", department);
-    if (examName) query = query.where("examName", "==", examName);
+    if (status) query = query.where("status", "==", status);
 
     const snap = await query.limit(limit).get();
     const results = snap.docs.map((doc) => ({
@@ -123,7 +116,7 @@ exports.getResults = onRequest(async (req, res) => {
 });
 
 // -----------------------------------------------------
-// GET RESULT DETAIL
+// GET SINGLE RESULT
 // -----------------------------------------------------
 exports.getResultDetail = onRequest(async (req, res) => {
   try {

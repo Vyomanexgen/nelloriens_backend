@@ -15,23 +15,23 @@
   "emulators": {
     "functions": {
       "host": "127.0.0.1",
-      "port": 5001
+      "port": 5101
     },
     "firestore": {
       "host": "127.0.0.1",
-      "port": 8085
+      "port": 8186
     },
     "storage": {
       "host": "127.0.0.1",
-      "port": 9195
+      "port": 9296
     },
     "ui": {
       "enabled": true,
       "host": "127.0.0.1",
-      "port": 4001
+      "port": 4200
     },
     "hub": {
-      "port": 4401
+      "port": 4502
     }
   }
 }

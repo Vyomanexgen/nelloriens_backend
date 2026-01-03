@@ -2,12 +2,8 @@ const { onRequest } = require("firebase-functions/v2/https");
 const { admin } = require("./db");
 const { v4: uuidv4 } = require("uuid");
 
-// Storage bucket (admin already initialized in db.js)
 const bucket = admin.storage().bucket();
 
-// -----------------------------------------------------
-// UPLOAD BASE64 IMAGE / FILE TO STORAGE
-// -----------------------------------------------------
 exports.uploadMedia = onRequest(async (req, res) => {
   try {
     const { fileName, base64File, folder } = req.body;
@@ -30,7 +26,6 @@ exports.uploadMedia = onRequest(async (req, res) => {
         metadata: {
           firebaseStorageDownloadTokens: uniqueId,
         },
-        cacheControl: "public,max-age=31536000",
       },
     });
 
@@ -38,54 +33,23 @@ exports.uploadMedia = onRequest(async (req, res) => {
       bucket.name
     }/o/${encodeURIComponent(finalFileName)}?alt=media&token=${uniqueId}`;
 
-    res.json({
-      success: true,
-      url: downloadURL,
-      fileName: finalFileName,
-    });
+    res.json({ success: true, url: downloadURL, fileName: finalFileName });
   } catch (err) {
     console.error("Upload error:", err);
-    res.status(500).json({ error: "Internal server error" });
+    res.status(500).json({ error: err.message });
   }
 });
 
-// -----------------------------------------------------
-// DELETE MEDIA FROM STORAGE
-// -----------------------------------------------------
 exports.deleteMedia = onRequest(async (req, res) => {
-  try {
-    const { fileName } = req.body;
-
-    if (!fileName) {
-      return res.status(400).json({ error: "fileName is required" });
-    }
-
-    await bucket.file(fileName).delete();
-    res.json({ success: true, message: "File deleted successfully" });
-  } catch (err) {
-    console.error("Delete error:", err);
-    res.status(500).json({ error: "Internal server error" });
-  }
+  const { fileName } = req.body;
+  await bucket.file(fileName).delete();
+  res.json({ success: true });
 });
 
-// -----------------------------------------------------
-// GET PUBLIC URL FOR EXISTING STORAGE FILE
-// -----------------------------------------------------
 exports.getMediaUrl = onRequest(async (req, res) => {
-  try {
-    const { fileName, token } = req.query;
-
-    if (!fileName || !token) {
-      return res.status(400).json({ error: "fileName and token required" });
-    }
-
-    const url = `https://firebasestorage.googleapis.com/v0/b/${
-      bucket.name
-    }/o/${encodeURIComponent(fileName)}?alt=media&token=${token}`;
-
-    res.json({ success: true, url });
-  } catch (err) {
-    console.error("URL error:", err);
-    res.status(500).json({ error: "Internal server error" });
-  }
+  const { fileName, token } = req.query;
+  const url = `https://firebasestorage.googleapis.com/v0/b/${
+    bucket.name
+  }/o/${encodeURIComponent(fileName)}?alt=media&token=${token}`;
+  res.json({ success: true, url });
 });

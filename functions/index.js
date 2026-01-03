@@ -1,21 +1,36 @@
 const { onRequest } = require("firebase-functions/v2/https");
+const cors = require("cors")({ origin: true });
+const { db, FieldValue } = require("./db");
 
+/* TEST */
 exports.testPing = onRequest((req, res) => {
   res.json({ success: true, message: "pong" });
 });
 
-/* =========================
-   ADS APIs
-========================= */
-exports.adsCreateAd = require("./ads").createAd;
-exports.adsUpdateAd = require("./ads").updateAd;
-exports.adsDeleteAd = require("./ads").deleteAd;
-exports.adsGetAds = require("./ads").getAds;
-exports.adsGetAdPreview = require("./ads").getAdPreview;
+/* ADS — INLINE (FINAL PROOF FIX) */
+exports.adsCreateAd = onRequest((req, res) => {
+  cors(req, res, async () => {
+    try {
+      const { title } = req.body || {};
 
-/* =========================
-   OTHER MODULES
-========================= */
+      if (!title) {
+        return res.status(400).json({ error: "title is required" });
+      }
+
+      await db.collection("ads").add({
+        title,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+
+      res.json({ success: true });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: err.message });
+    }
+  });
+});
+
+/* OTHER MODULES (UNCHANGED) */
 exports.jobs = require("./jobs");
 exports.news = require("./news");
 exports.updates = require("./updates");
@@ -25,5 +40,8 @@ exports.sports = require("./sports");
 exports.famousFoods = require("./famousFoods");
 exports.famousStay = require("./famousStay");
 exports.history = require("./history");
-// exports.media = require("./media"); // keep commented until bucket fixed
 exports.commonAds = require("./commonAds");
+exports.offers = require("./offers");
+exports.media = require("./media");
+exports.transport = require("./Transport");
+exports.movies = require("./Movies");

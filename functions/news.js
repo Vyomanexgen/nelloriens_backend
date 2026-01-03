@@ -1,5 +1,6 @@
 const { onRequest } = require("firebase-functions/v2/https");
-const { db, admin } = require("./db");
+const { db } = require("./db");
+const { Timestamp } = require("firebase-admin/firestore");
 
 // Collections
 const newsCollection = db.collection("news");
@@ -42,7 +43,7 @@ exports.createNews = onRequest(async (req, res) => {
       featured: !!featured,
       author: author || "",
       publishDate: publishDate
-        ? admin.firestore.Timestamp.fromDate(new Date(publishDate))
+        ? Timestamp.fromDate(new Date(publishDate))
         : null,
       visibility: visibility || "site-wide",
       coverImageUrl: coverImageUrl || null,
@@ -54,8 +55,8 @@ exports.createNews = onRequest(async (req, res) => {
       seoDescription: seoDescription || null,
       showRightRailAd: !!showRightRailAd,
       createdBy: createdBy || null,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
     };
 
     const docRef = await newsCollection.add(newsData);
@@ -77,12 +78,10 @@ exports.updateNews = onRequest(async (req, res) => {
     }
 
     if (updates.publishDate) {
-      updates.publishDate = admin.firestore.Timestamp.fromDate(
-        new Date(updates.publishDate)
-      );
+      updates.publishDate = Timestamp.fromDate(new Date(updates.publishDate));
     }
 
-    updates.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+    updates.updatedAt = Timestamp.now();
     await newsCollection.doc(id).update(updates);
 
     res.json({ success: true });
@@ -198,8 +197,8 @@ exports.createNewsLine = onRequest(async (req, res) => {
       },
       order: Array.isArray(order) ? order : [],
       createdBy: createdBy || null,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
     };
 
     const docRef = await newsLinesCollection.add(lineData);
@@ -217,7 +216,7 @@ exports.updateNewsLine = onRequest(async (req, res) => {
       return res.status(400).json({ error: "News line ID required" });
     }
 
-    updates.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+    updates.updatedAt = Timestamp.now();
     await newsLinesCollection.doc(id).update(updates);
 
     res.json({ success: true });
@@ -245,6 +244,7 @@ exports.deleteNewsLine = onRequest(async (req, res) => {
 exports.getNewsLines = onRequest(async (req, res) => {
   try {
     const snap = await newsLinesCollection.orderBy("createdAt", "desc").get();
+
     const lines = snap.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),

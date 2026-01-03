@@ -1,6 +1,8 @@
 const { onRequest } = require("firebase-functions/v2/https");
-const { db, admin } = require("./db");
+const { db } = require("./db");
+const { Timestamp } = require("firebase-admin/firestore");
 
+// Collection
 const notificationsCollection = db.collection("notifications");
 
 // -----------------------------------------------------
@@ -10,43 +12,34 @@ exports.createNotification = onRequest(async (req, res) => {
   try {
     const {
       title,
-      category,
-      department,
-      level,
-      date,
-      summary,
-      details,
-      pdfUrl,
-      externalLink,
-      tags,
+      message,
+      type,
+      priority,
+      audience,
+      actionUrl,
+      expiresAt,
       createdBy,
     } = req.body;
 
-    if (!title) {
-      return res.status(400).json({ error: "Title is required" });
+    if (!title || !message) {
+      return res.status(400).json({ error: "Title and message are required" });
     }
 
-    const notificationData = {
+    const data = {
       title,
-      category: category || "",
-      department: department || "",
-      level: level || "",
-      date: date
-        ? admin.firestore.Timestamp.fromDate(new Date(date))
-        : admin.firestore.FieldValue.serverTimestamp(),
-      summary: summary || "",
-      details: details || "",
-      pdfUrl: pdfUrl || "",
-      externalLink: externalLink || "",
-      tags: Array.isArray(tags) ? tags : [],
+      message,
+      type: type || "info", // info | warning | alert
+      priority: priority || "normal", // low | normal | high
+      audience: audience || "public", // public | users | admins
+      actionUrl: actionUrl || null,
+      expiresAt: expiresAt ? Timestamp.fromDate(new Date(expiresAt)) : null,
       createdBy: createdBy || null,
-      status: "published",
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      createdAt: Timestamp.now(),
+      updatedAt: Timestamp.now(),
     };
 
-    const ref = await notificationsCollection.add(notificationData);
-    res.json({ success: true, id: ref.id });
+    const docRef = await notificationsCollection.add(data);
+    res.json({ success: true, id: docRef.id });
   } catch (err) {
     console.error("Error creating notification:", err);
     res.status(500).json({ error: "Internal server error" });
@@ -63,10 +56,14 @@ exports.updateNotification = onRequest(async (req, res) => {
       return res.status(400).json({ error: "Notification ID required" });
     }
 
-    updates.updatedAt = admin.firestore.FieldValue.serverTimestamp();
+    if (updates.expiresAt) {
+      updates.expiresAt = Timestamp.fromDate(new Date(updates.expiresAt));
+    }
+
+    updates.updatedAt = Timestamp.now();
     await notificationsCollection.doc(id).update(updates);
 
-    res.json({ success: true, message: "Notification updated" });
+    res.json({ success: true });
   } catch (err) {
     console.error("Error updating notification:", err);
     res.status(500).json({ error: "Internal server error" });
@@ -92,16 +89,17 @@ exports.deleteNotification = onRequest(async (req, res) => {
 });
 
 // -----------------------------------------------------
-// GET NOTIFICATIONS (LIST + FILTER)
+// GET NOTIFICATIONS LIST
 // -----------------------------------------------------
 exports.getNotifications = onRequest(async (req, res) => {
   try {
-    const { category, department, level, limit = 100 } = req.body || {};
-    let query = notificationsCollection.orderBy("date", "desc");
+    const { type, priority, audience, limit = 50 } = req.body || {};
 
-    if (category) query = query.where("category", "==", category);
-    if (department) query = query.where("department", "==", department);
-    if (level) query = query.where("level", "==", level);
+    let query = notificationsCollection.orderBy("createdAt", "desc");
+
+    if (type) query = query.where("type", "==", type);
+    if (priority) query = query.where("priority", "==", priority);
+    if (audience) query = query.where("audience", "==", audience);
 
     const snap = await query.limit(limit).get();
     const notifications = snap.docs.map((doc) => ({
@@ -117,7 +115,7 @@ exports.getNotifications = onRequest(async (req, res) => {
 });
 
 // -----------------------------------------------------
-// GET NOTIFICATION DETAIL
+// GET SINGLE NOTIFICATION
 // -----------------------------------------------------
 exports.getNotificationDetail = onRequest(async (req, res) => {
   try {
